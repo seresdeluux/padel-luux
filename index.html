@@ -238,7 +238,7 @@ function App(){
   const setLD=ld=>{setLigaData(ld);persist({ligaData:ld});};
   const setTB=tb=>{setTeamBase(tb);persist({teamBase:tb});};
   const resetSeason=()=>{
-    if(!confirm("⚠️ NUEVA TEMPORADA — RESET COMPLETO\n\nSe pondrá a cero:\n• Historial de todos los jugadores (nC, nP, nW, nL)\n• Todas las convocatorias\n• Totales del equipo\n\n¿Confirmar? Esta acción NO se puede deshacer."))return;
+    if(!confirm("⚠️ NUEVA TEMPORADA — RESET COMPLETO\n\nSe pondrá a cero:\n• Historial de todas las jugadoras (nC, nP, nW, nL)\n• Todas las convocatorias\n• Totales del equipo\n\n¿Confirmar? Esta acción NO se puede deshacer."))return;
     const rp=players.map(p=>({...p,baseStats:{nC:0,nP:0,nW:0,nL:0}}));
     const rtb={matches:0,wins:0,losses:0};
     setPlayers(rp);setMatches([]);setTeamBase(rtb);
@@ -287,7 +287,7 @@ function AppHeader({club,onSave,synced}){
 function BottomNav({tab,onChange}){
   return(
     <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #e5e7eb",display:"flex",zIndex:999,boxShadow:"0 -4px 20px rgba(0,0,0,.10)"}}>
-      {[["conv","📋","Convocar"],["players","👤","Jugadores"],["stats","📊","Stats"],["liga","🏆","Liga"]].map(([id,ic,lb])=>(
+      {[["conv","📋","Convocar"],["players","👤","Jugadoras"],["stats","📊","Stats"],["liga","🏆","Liga"]].map(([id,ic,lb])=>(
         <button key={id} onClick={()=>onChange(id)} style={{flex:1,border:"none",background:"none",padding:"8px 0 6px",cursor:"pointer",color:tab===id?G6:"#bdbdbd",borderTop:`3px solid ${tab===id?G6:"transparent"}`,transition:"all .2s"}}>
           <div style={{fontSize:20}}>{ic}</div><div style={{fontSize:9,fontWeight:700,marginTop:2,letterSpacing:.3}}>{lb}</div>
         </button>
@@ -577,7 +577,7 @@ function PlayersTab({players,onUpdate}){
   const resetLic=()=>{if(confirm("¿Resetear TODAS las licencias?\n(Usar el 1 de enero)"))onUpdate(players.map(p=>({...p,licencia:false})));};
   return(
     <div>
-      <STitle action={<button onClick={()=>{setForm({name:"",nick:"",position:"derecha",points:""});setEditId(null);setShow(s=>!s);}} style={btnS()}>+ Añadir</button>}>Jugadores ({players.length})</STitle>
+      <STitle action={<button onClick={()=>{setForm({name:"",nick:"",position:"derecha",points:""});setEditId(null);setShow(s=>!s);}} style={btnS()}>+ Añadir</button>}>Jugadoras ({players.length})</STitle>
       {show&&(
         <div className="card fade-in">
           <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,color:DARK,marginBottom:14,fontSize:16}}>{editId?"✏️ Editar":"➕ Nuevo"} jugador</div>
@@ -624,7 +624,7 @@ function PlayersTab({players,onUpdate}){
           </div>
         );
       })}
-      {players.length===0&&<Empty ico="👤" text="Sin jugadores" sub="Añade jugadores al equipo"/>}
+      {players.length===0&&<Empty ico="👤" text="Sin jugadoras" sub="Añade jugadoras al equipo"/>}
     </div>
   );
 }
@@ -706,7 +706,7 @@ function StatsTab({players,matches,onUpdate,teamBase,onTeamSave,onResetSeason}){
       </div>
 
       <div className="card" style={{padding:"10px 14px",marginBottom:10}}>
-        <div style={{fontSize:11,color:GREY}}>Las estadísticas de jugadores combinan el <b style={{color:DARK}}>historial importado</b> más los <b style={{color:DARK}}>nuevos partidos</b> de la app.</div>
+        <div style={{fontSize:11,color:GREY}}>Las estadísticas de jugadoras combinan el <b style={{color:DARK}}>historial importado</b> más los <b style={{color:DARK}}>nuevos partidos</b> de la app.</div>
       </div>
       {allStats.length===0?<Empty ico="📊" text="Sin datos aún"/>:
         allStats.map((s,i)=>{
