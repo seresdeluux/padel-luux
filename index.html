@@ -222,11 +222,11 @@ function App(){
         const c=data.club||CLUB_DEFAULT,m=(data.matches||[]).map(normalizeMatch),ld=data.ligaData||INIT_LIGA,tb=data.teamBase||{matches:0,wins:0,losses:0};
         setClub(c);setPlayers(ps);setMatches(m);setLigaData(ld);setTeamBase(tb);
         ref.current={club:c,players:ps,matches:m,ligaData:ld,teamBase:tb};
-        setSynced(window._fbReady===true);
       }else{
         setPlayers(INIT_PLAYERS);setLigaData(INIT_LIGA);setTeamBase({matches:0,wins:0,losses:0});
         ref.current={club:CLUB_DEFAULT,players:INIT_PLAYERS,matches:[],ligaData:INIT_LIGA,teamBase:{matches:0,wins:0,losses:0}};
       }
+      setSynced(window._fbReady===true);
       setReady(true);
     });
     return unsub;
