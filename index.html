@@ -63,7 +63,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 const {useState,useEffect,useMemo,useRef,useCallback}=React;
-const APP_VERSION="1.1";
+const APP_VERSION="1.2";
 const CLUB_DEFAULT="SERES DE LUUX EL CUARTO SET";
 const DB_KEY="padelLuuxApp";
 const genId=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36);
@@ -115,6 +115,7 @@ const Fld=({label,children,mb=14})=><div style={{marginBottom:mb}}><label style=
 const Empty=({ico,text,sub=""})=><div style={{textAlign:"center",padding:"48px 24px",color:GREY}}><div style={{fontSize:52,marginBottom:10}}>{ico}</div><div style={{fontSize:16,fontWeight:700,color:DARK}}>{text}</div>{sub&&<div style={{fontSize:12,marginTop:5}}>{sub}</div>}</div>;
 const STitle=({children,action})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8,marginBottom:14}}><div style={{fontFamily:"'Outfit',sans-serif",fontSize:22,fontWeight:800,color:"#fff",letterSpacing:-.3}}>{children}</div>{action}</div>;
 const SancBadge=({s})=>{if(!s)return null;const map={yellow1:"🟡 1ª Amarilla",yellow2:"🟡🟡 → Roja",red:"🟥 Expulsión"};return<span style={chipS(s==="red"?RED:AMBER)}>{map[s]}</span>;};
+const InjuryBadge=({injured})=>{if(!injured)return null;return<span style={chipS("#ea580c","#fff7ed")}>🩹 Lesionada</span>;};
 const LicBadge=({ok})=><span style={{background:ok?"#f3e8ff":"#fee2e2",color:ok?"#6b21a8":"#991b1b",borderRadius:50,padding:"2px 9px",fontSize:11,fontWeight:700}}>{ok?"✓ Lic":"✗ Lic"}</span>;
 const shortName=n=>{const p=n.split(" ");return p.length>=2?`${p[0]} ${p[1]}`:p[0];};
 const isUrl=v=>v&&(v.startsWith("http")||v.startsWith("maps."));
@@ -213,7 +214,7 @@ function App(){
           const bs=p.baseStats;
           // Usa el campo si EXISTE en Firebase (aunque sea todo ceros — reset de temporada)
           // Solo cae al INIT_PLAYERS si el campo ni siquiera está definido en Firebase
-          return{licencia:true,sanction:null,...p,
+          return{licencia:true,sanction:null,injury:null,...p,
             nick:p.nick||init?.nick||"",
             baseStats:bs!=null?bs:(init?.baseStats||{nC:0,nP:0,nW:0,nL:0})
           };
@@ -417,7 +418,11 @@ function StepCalled({m,players,onChange,onNext,onBack}){
   const sorted=[...players].sort((a,b)=>b.points-a.points);
   const allCalled=[...m.calledDerecha,...m.calledReves];
   const avail=sorted.filter(p=>!allCalled.includes(p.id));
-  const addTo=(id,side)=>{if(side==="d")onChange({calledDerecha:[...m.calledDerecha,id]});else onChange({calledReves:[...m.calledReves,id]});};
+  const addTo=(id,side)=>{
+    const p=players.find(x=>x.id===id);
+    if(p?.injury&&!confirm(`⚠️ ${p.nick||p.name} está LESIONADA.\n¿Confirmas igualmente su convocatoria?`))return;
+    if(side==="d")onChange({calledDerecha:[...m.calledDerecha,id]});else onChange({calledReves:[...m.calledReves,id]});
+  };
   const remFrom=(id,side)=>{if(side==="d")onChange({calledDerecha:m.calledDerecha.filter(x=>x!==id)});else onChange({calledReves:m.calledReves.filter(x=>x!==id)});};
   const Col=({side})=>{
     const ids=side==="d"?m.calledDerecha:m.calledReves;
@@ -564,7 +569,7 @@ function PlayersTab({players,onUpdate}){
   const sorted=[...players].sort((a,b)=>b.points-a.points);
   const saveP=()=>{
     if(!form.name.trim())return;const pts=Number(form.points)||0;
-    onUpdate(editId?players.map(p=>p.id===editId?{...p,...form,points:pts}:p):[...players,{id:genId(),...form,points:pts,licencia:true,sanction:null,baseStats:{nC:0,nP:0,nW:0,nL:0}}]);
+    onUpdate(editId?players.map(p=>p.id===editId?{...p,...form,points:pts}:p):[...players,{id:genId(),...form,points:pts,licencia:true,sanction:null,injury:null,baseStats:{nC:0,nP:0,nW:0,nL:0}}]);
     setForm({name:"",nick:"",position:"derecha",points:""});setEditId(null);setShow(false);
   };
   const editP=p=>{setForm({name:p.name,nick:p.nick||"",position:p.position,points:String(p.points)});setEditId(p.id);setShow(true);window.scrollTo(0,0);};
@@ -573,6 +578,8 @@ function PlayersTab({players,onUpdate}){
   const cycleSanc=id=>{const p=players.find(x=>x.id===id);if(!p)return;onUpdate(players.map(x=>x.id===id?{...x,sanction:SANC_CYCLE[x.sanction]}:x));};
   const setRed=id=>onUpdate(players.map(p=>p.id===id?{...p,sanction:"red"}:p));
   const clearSanc=id=>onUpdate(players.map(p=>p.id===id?{...p,sanction:null}:p));
+  const toggleInjury=id=>onUpdate(players.map(p=>p.id===id?{...p,injury:p.injury?null:"lesionada"}:p));
+  const clearInjury=id=>onUpdate(players.map(p=>p.id===id?{...p,injury:null}:p));
   const allLic=()=>onUpdate(players.map(p=>({...p,licencia:true})));
   const resetLic=()=>{if(confirm("¿Resetear TODAS las licencias?\n(Usar el 1 de enero)"))onUpdate(players.map(p=>({...p,licencia:false})));};
   return(
@@ -594,7 +601,7 @@ function PlayersTab({players,onUpdate}){
         </div>
       )}
       <div className="card" style={{padding:"10px 14px",marginBottom:10}}>
-        <Row><div style={{fontSize:12,color:GREY,fontWeight:600}}>{players.filter(p=>p.licencia).length}/{players.length} con licencia{players.filter(p=>p.sanction).length>0&&` · ⚠️ ${players.filter(p=>p.sanction).length} sancionados`}</div><div style={{display:"flex",gap:6}}><button onClick={allLic} style={{...btnS("#f3e8ff","#6b21a8",11),boxShadow:"none"}}>✓ Lic. todas</button><button onClick={resetLic} style={{...btnS("#fee2e2","#991b1b",11),boxShadow:"none"}}>✗ Reset</button></div></Row>
+        <Row><div style={{fontSize:12,color:GREY,fontWeight:600}}>{players.filter(p=>p.licencia).length}/{players.length} con licencia{players.filter(p=>p.sanction).length>0&&` · ⚠️ ${players.filter(p=>p.sanction).length} sancionadas`}{players.filter(p=>p.injury).length>0&&` · 🩹 ${players.filter(p=>p.injury).length} lesionadas`}</div><div style={{display:"flex",gap:6}}><button onClick={allLic} style={{...btnS("#f3e8ff","#6b21a8",11),boxShadow:"none"}}>✓ Lic. todas</button><button onClick={resetLic} style={{...btnS("#fee2e2","#991b1b",11),boxShadow:"none"}}>✗ Reset</button></div></Row>
       </div>
       {sorted.map((p,i)=>{
         const color=p.position==="derecha"?G5:BLUE,colorL=p.position==="derecha"?"#f5f0ff":BLUEL;
@@ -610,17 +617,20 @@ function PlayersTab({players,onUpdate}){
                   <span style={{fontSize:11,color:GREY}}>{p.position==="derecha"?"🟢 D":"🔵 R"}</span>
                   <LicBadge ok={p.licencia}/>
                   {p.sanction&&<SancBadge s={p.sanction}/>}
+                  {p.injury&&<InjuryBadge injured={p.injury}/>}
                 </div>
               </div>
               <div style={{display:"flex",gap:4,flexShrink:0}}>
                 <button onClick={()=>togLic(p.id)} style={{background:p.licencia?"#f3e8ff":"#fee2e2",border:"none",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:12}}>{p.licencia?"✓":"✗"}</button>
                 <button onClick={()=>cycleSanc(p.id)} style={{background:p.sanction?AMBERL:"#f3f4f6",border:"none",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:12}}>🟡</button>
                 <button onClick={()=>setRed(p.id)} style={{background:REDL,border:"none",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:12}}>🟥</button>
+                <button onClick={()=>toggleInjury(p.id)} title={p.injury?"Quitar lesión":"Marcar lesionada"} style={{background:p.injury?"#fff7ed":"#f3f4f6",border:p.injury?"1.5px solid #ea580c30":"none",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:12}}>🩹</button>
                 <button onClick={()=>editP(p)} style={{background:"#f5f0ff",border:"none",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:12}}>✏️</button>
                 <button onClick={()=>delP(p.id)} style={{background:REDL,border:"none",borderRadius:8,padding:"5px 7px",cursor:"pointer",fontSize:12}}>🗑️</button>
               </div>
             </div>
             {p.sanction&&<div style={{marginTop:8,padding:"6px 10px",background:REDL,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}><SancBadge s={p.sanction}/><button onClick={()=>clearSanc(p.id)} style={{...btnS(REDL,RED,11),boxShadow:"none",border:`1px solid ${RED}30`}}>Limpiar</button></div>}
+            {p.injury&&<div style={{marginTop:8,padding:"6px 10px",background:"#fff7ed",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}><InjuryBadge injured={p.injury}/><button onClick={()=>clearInjury(p.id)} style={{...btnS("#fff7ed","#ea580c",11),boxShadow:"none",border:"1px solid #ea580c30"}}>Recuperada ✓</button></div>}
           </div>
         );
       })}
