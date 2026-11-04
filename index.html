@@ -63,7 +63,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 const {useState,useEffect,useMemo,useRef,useCallback}=React;
-const APP_VERSION="1.2";
+const APP_VERSION="1.3";
 const CLUB_DEFAULT="SERES DE LUUX EL CUARTO SET";
 const DB_KEY="padelLuuxApp";
 const genId=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36);
@@ -122,8 +122,8 @@ const isUrl=v=>v&&(v.startsWith("http")||v.startsWith("maps."));
 const locLink=v=>isUrl(v)?v:`https://maps.google.com/?q=${encodeURIComponent(v||"")}`;
 // HELPERS
 const pairSum=(pair,players)=>{const d=players.find(p=>p.id===pair.derechaId),r=players.find(p=>p.id===pair.revesId);return(d?.points??0)+(r?.points??0);};
-const checkPairs=(pairs,players)=>{const e=[];[1,2].forEach(t=>{const tp=pairs.filter(p=>p.turn===t);for(let i=0;i<tp.length-1;i++){if(!tp[i].derechaId||!tp[i].revesId||!tp[i+1].derechaId||!tp[i+1].revesId)continue;const s1=pairSum(tp[i],players),s2=pairSum(tp[i+1],players);if(s1<s2)e.push(`Turno ${t} Pareja ${tp[i].pairNum} (${s1}pts) < Pareja ${tp[i+1].pairNum} (${s2}pts)`);}});return e;};
-const mkPairs=()=>[{turn:1,pairNum:1,derechaId:null,revesId:null,pairResult:null},{turn:1,pairNum:2,derechaId:null,revesId:null,pairResult:null},{turn:1,pairNum:3,derechaId:null,revesId:null,pairResult:null},{turn:2,pairNum:1,derechaId:null,revesId:null,pairResult:null},{turn:2,pairNum:2,derechaId:null,revesId:null,pairResult:null}];
+const checkPairs=(pairs,players)=>{const e=[];[1,2].forEach(t=>{const tp=pairs.filter(p=>p.turn===t&&!p.wo);for(let i=0;i<tp.length-1;i++){if(!tp[i].derechaId||!tp[i].revesId||!tp[i+1].derechaId||!tp[i+1].revesId)continue;const s1=pairSum(tp[i],players),s2=pairSum(tp[i+1],players);if(s1<s2)e.push(`Turno ${t} Pareja ${tp[i].pairNum} (${s1}pts) < Pareja ${tp[i+1].pairNum} (${s2}pts)`);}});return e;};
+const mkPairs=()=>[{turn:1,pairNum:1,derechaId:null,revesId:null,pairResult:null,wo:false},{turn:1,pairNum:2,derechaId:null,revesId:null,pairResult:null,wo:false},{turn:1,pairNum:3,derechaId:null,revesId:null,pairResult:null,wo:false},{turn:2,pairNum:1,derechaId:null,revesId:null,pairResult:null,wo:false},{turn:2,pairNum:2,derechaId:null,revesId:null,pairResult:null,wo:false}];
 
 // Normaliza partidos de versiones anteriores — añade campos que faltan
 const normalizeMatch=m=>({
@@ -135,15 +135,15 @@ const normalizeMatch=m=>({
   location:m.location||"",
   calledDerecha:Array.isArray(m.calledDerecha)?m.calledDerecha:[],
   calledReves:Array.isArray(m.calledReves)?m.calledReves:[],
-  pairs:(Array.isArray(m.pairs)?m.pairs:mkPairs()).map(p=>({turn:p.turn||1,pairNum:p.pairNum||1,derechaId:p.derechaId||null,revesId:p.revesId||null,pairResult:p.pairResult||null})),
+  pairs:(Array.isArray(m.pairs)?m.pairs:mkPairs()).map(p=>({turn:p.turn||1,pairNum:p.pairNum||1,derechaId:p.derechaId||null,revesId:p.revesId||null,pairResult:p.pairResult||null,wo:!!p.wo})),
   result:m.result||null,
   status:m.status||"complete",
 });
 const calcScore=m=>{
-  const active=(m.pairs||[]).filter(p=>p.derechaId&&p.revesId&&p.pairResult);
+  const active=(m.pairs||[]).filter(p=>p.wo||(p.derechaId&&p.revesId&&p.pairResult));
   if(!active.length)return null;
-  const wins=active.filter(p=>p.pairResult==="win").length;
-  const losses=active.filter(p=>p.pairResult==="loss").length;
+  const wins=active.filter(p=>!p.wo&&p.pairResult==="win").length;
+  const losses=active.filter(p=>p.wo||p.pairResult==="loss").length;
   const hs=m.isHome?wins:losses,as=m.isHome?losses:wins;
   return{homeScore:hs,awayScore:as,wins,losses,label:`${hs}-${as}`,result:wins>losses?"win":losses>wins?"loss":null};
 };
@@ -153,9 +153,10 @@ const calcPlayerStats=(player,matches)=>{
   const isCalled=m=>(m.calledDerecha||[]).includes(player.id)||(m.calledReves||[]).includes(player.id);
   const myPair=m=>(m.pairs||[]).find(p=>(p.derechaId===player.id||p.revesId===player.id));
   const aC=done.filter(m=>isCalled(m)).length;
-  const aP=done.filter(m=>{const p=myPair(m);return p&&(p.derechaId||p.revesId);}).length;
-  const aW=done.filter(m=>{const p=myPair(m);return p&&(p.derechaId===player.id||p.revesId===player.id)&&p.pairResult==="win";}).length;
-  const aL=done.filter(m=>{const p=myPair(m);return p&&(p.derechaId===player.id||p.revesId===player.id)&&p.pairResult==="loss";}).length;
+  // Partidos W.O. no suman para la jugadora (no llegaron a pisar pista)
+  const aP=done.filter(m=>{const p=myPair(m);return p&&!p.wo&&(p.derechaId||p.revesId);}).length;
+  const aW=done.filter(m=>{const p=myPair(m);return p&&!p.wo&&(p.derechaId===player.id||p.revesId===player.id)&&p.pairResult==="win";}).length;
+  const aL=done.filter(m=>{const p=myPair(m);return p&&!p.wo&&(p.derechaId===player.id||p.revesId===player.id)&&p.pairResult==="loss";}).length;
   const nC=base.nC+aC,nP=base.nP+aP,nW=base.nW+aW,nL=base.nL+aL;
   return{nC,nP,nW,nL,pPl:nC?Math.round(nP/nC*100):0,pWi:nP?Math.round(nW/nP*100):0};
 };
@@ -171,13 +172,14 @@ const shareWhatsApp=(m,players,club)=>{
   if(sc)t+=`\n📊 *Resultado:* ${sc.label} ${sc.result==="win"?"✅ GANADO":sc.result==="loss"?"❌ PERDIDO":"—"}\n`;
   t+=`\n*━━ PAREJAS ━━*\n`;
   [1,2].forEach(turn=>{
-    const tp=m.pairs.filter(p=>p.turn===turn&&p.derechaId&&p.revesId);
+    const tp=m.pairs.filter(p=>p.turn===turn&&(p.wo||(p.derechaId&&p.revesId)));
     if(!tp.length)return;
     t+=`\n⏰ *${turn===1?"Primer turno (20:00h)":"Segundo turno"}*\n`;
     tp.forEach(p=>{
       const d=players.find(pl=>pl.id===p.derechaId),r=players.find(pl=>pl.id===p.revesId);
-      const res=p.pairResult==="win"?" ✅":p.pairResult==="loss"?" ❌":"";
-      t+=`  • P${p.pairNum}: ${d?.nick||shortName(d?.name||"")} / ${r?.nick||shortName(r?.name||"")}${res}\n`;
+      const res=p.wo?" ⚡W.O.":p.pairResult==="win"?" ✅":p.pairResult==="loss"?" ❌":"";
+      const names=p.wo?"(sin pareja — W.O.)":`${d?.nick||shortName(d?.name||"")} / ${r?.nick||shortName(r?.name||"")}`;
+      t+=`  • P${p.pairNum}: ${names}${res}\n`;
     });
   });
   t+=`\n⚠️ _Llevar DNI a la convocatoria_`;
@@ -458,16 +460,44 @@ function StepPairs({m,players,onChange,onFinish,onBack}){
   const cR=m.calledReves.map(id=>players.find(p=>p.id===id)).filter(Boolean).sort((a,b)=>b.points-a.points);
   const uD=m.pairs.map(p=>p.derechaId).filter(Boolean),uR=m.pairs.map(p=>p.revesId).filter(Boolean);
   const setPF=(idx,field,val)=>onChange({pairs:m.pairs.map((p,i)=>i===idx?{...p,[field]:val||null}:p)});
+  const toggleWO=(idx)=>{
+    const p=m.pairs[idx],next=!p.wo;
+    // Mantenemos derechaId/revesId si había jugadoras (caso: convocadas pero no se presentaron)
+    // Si la pareja estaba vacía, sigue vacía
+    onChange({pairs:m.pairs.map((pr,i)=>i===idx?{...pr,wo:next,pairResult:next?"loss":null}:pr)});
+  };
   const PRow=({idx,label})=>{
     const pair=m.pairs[idx],sum=pairSum(pair,players),ok=pair.derechaId&&pair.revesId;
     const avD=cD.filter(p=>!uD.includes(p.id)||p.id===pair.derechaId),avR=cR.filter(p=>!uR.includes(p.id)||p.id===pair.revesId);
     return(
-      <div style={{background:"#f5f3ff",border:"1.5px solid #e9d5ff",borderRadius:14,padding:"10px 12px",marginBottom:8}}>
-        <Row style={{marginBottom:8}}><div style={{fontWeight:700,fontSize:14,color:G7,fontFamily:"'Outfit',sans-serif"}}>{label}</div>{ok&&<span style={{...chipS(G6),fontWeight:800}}>{sum} pts</span>}</Row>
-        <div style={{display:"flex",gap:8}}>
-          <select value={pair.derechaId||""} onChange={e=>setPF(idx,"derechaId",e.target.value)} style={{...selS,flex:1,padding:"7px 8px",fontSize:12,background:"#f5f0ff",border:`1.5px solid ${G5}40`}}><option value="">🟢 Derecha...</option>{avD.map(p=><option key={p.id} value={p.id}>{p.nick||shortName(p.name)} ({p.points})</option>)}</select>
-          <select value={pair.revesId||""} onChange={e=>setPF(idx,"revesId",e.target.value)} style={{...selS,flex:1,padding:"7px 8px",fontSize:12,background:BLUEL,border:`1.5px solid ${BLUE}40`}}><option value="">🔵 Revés...</option>{avR.map(p=><option key={p.id} value={p.id}>{p.nick||shortName(p.name)} ({p.points})</option>)}</select>
-        </div>
+      <div style={{background:pair.wo?"#fff7ed":"#f5f3ff",border:`1.5px solid ${pair.wo?"#ea580c40":"#e9d5ff"}`,borderRadius:14,padding:"10px 12px",marginBottom:8}}>
+        <Row style={{marginBottom:8}}>
+          <div style={{fontWeight:700,fontSize:14,color:pair.wo?"#ea580c":G7,fontFamily:"'Outfit',sans-serif"}}>{label}</div>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            {ok&&!pair.wo&&<span style={{...chipS(G6),fontWeight:800}}>{sum} pts</span>}
+            <button onClick={()=>toggleWO(idx)} style={{...btnS(pair.wo?"#ea580c":"#f3f4f6",pair.wo?"#fff":"#374151",11),padding:"4px 9px",boxShadow:"none"}}>⚡ W.O.{pair.wo?" ✓":""}</button>
+          </div>
+        </Row>
+        {pair.wo?(
+          <div>
+            {(pair.derechaId||pair.revesId)?(
+              // Caso B: jugadoras convocadas que no se presentaron
+              <div style={{display:"flex",gap:14,padding:"5px 0",flexWrap:"wrap",opacity:.6}}>
+                {pair.derechaId&&<span style={{fontSize:12,textDecoration:"line-through",color:"#374151"}}>🟢 {cD.find(p=>p.id===pair.derechaId)?.nick||shortName(cD.find(p=>p.id===pair.derechaId)?.name||"")}</span>}
+                {pair.revesId&&<span style={{fontSize:12,textDecoration:"line-through",color:"#374151"}}>🔵 {cR.find(p=>p.id===pair.revesId)?.nick||shortName(cR.find(p=>p.id===pair.revesId)?.name||"")}</span>}
+              </div>
+            ):(
+              // Caso A: pareja vacía, sin jugadoras
+              <div style={{fontSize:12,color:"#9a3412",padding:"4px 0"}}>Sin jugadoras asignadas · nadie acumula estadística</div>
+            )}
+            <div style={{fontSize:11,color:"#ea580c",fontWeight:600,marginTop:3}}>La FMP registra este partido como 6/0 6/0 para el rival</div>
+          </div>
+        ):(
+          <div style={{display:"flex",gap:8}}>
+            <select value={pair.derechaId||""} onChange={e=>setPF(idx,"derechaId",e.target.value)} style={{...selS,flex:1,padding:"7px 8px",fontSize:12,background:"#f5f0ff",border:`1.5px solid ${G5}40`}}><option value="">🟢 Derecha...</option>{avD.map(p=><option key={p.id} value={p.id}>{p.nick||shortName(p.name)} ({p.points})</option>)}</select>
+            <select value={pair.revesId||""} onChange={e=>setPF(idx,"revesId",e.target.value)} style={{...selS,flex:1,padding:"7px 8px",fontSize:12,background:BLUEL,border:`1.5px solid ${BLUE}40`}}><option value="">🔵 Revés...</option>{avR.map(p=><option key={p.id} value={p.id}>{p.nick||shortName(p.name)} ({p.points})</option>)}</select>
+          </div>
+        )}
       </div>
     );
   };
@@ -484,7 +514,7 @@ function StepPairs({m,players,onChange,onFinish,onBack}){
 function Detail({match,players,onUpdate,onBack,onDelete,club,onEdit}){
   const [m,setM]=useState({...match});
   const setPairRes=(idx,res)=>{
-    const np=m.pairs.map((p,i)=>{if(i!==idx)return p;return{...p,pairResult:p.pairResult===res?null:res};});
+    const np=m.pairs.map((p,i)=>{if(i!==idx)return p;if(res==="wo")return{...p,wo:!p.wo,pairResult:!p.wo?"loss":null};return{...p,wo:false,pairResult:p.pairResult===res?null:res};});
     const sc=calcScore({...m,pairs:np});
     const u={...m,pairs:np,result:sc?.result||null};
     setM(u);onUpdate(u);
@@ -492,27 +522,44 @@ function Detail({match,players,onUpdate,onBack,onDelete,club,onEdit}){
   const sc=calcScore(m);
   const PairSection=({turn,label})=>{
     const tp=m.pairs.map((p,i)=>({...p,_i:i})).filter(p=>p.turn===turn);
-    if(!tp.some(p=>p.derechaId||p.revesId))return null;
+    if(!tp.some(p=>p.derechaId||p.revesId||p.wo))return null;
     return(
       <div style={{marginBottom:14}}>
         <div style={{fontFamily:"'Outfit',sans-serif",fontWeight:800,color:G7,fontSize:14,marginBottom:8}}>⏰ {label}</div>
         {tp.map(pair=>{
-          if(!pair.derechaId&&!pair.revesId)return null;
+          if(!pair.derechaId&&!pair.revesId&&!pair.wo)return null;
           const d=players.find(p=>p.id===pair.derechaId),r=players.find(p=>p.id===pair.revesId);
-          const brd=pair.pairResult==="win"?G4:pair.pairResult==="loss"?RED:"#e9d5ff";
+          const brd=pair.wo?"#ea580c":pair.pairResult==="win"?G4:pair.pairResult==="loss"?RED:"#e9d5ff";
+          const bg=pair.wo?"#fff7ed":"#f5f3ff";
           return(
-            <div key={pair._i} style={{background:"#f5f3ff",border:`2px solid ${brd}`,borderRadius:14,padding:"10px 12px",marginBottom:8}}>
+            <div key={pair._i} style={{background:bg,border:`2px solid ${brd}`,borderRadius:14,padding:"10px 12px",marginBottom:8}}>
               <Row style={{marginBottom:7}}>
-                <div style={{fontWeight:700,fontSize:13,color:G7}}>Pareja {pair.pairNum}</div>
-                {d&&r&&<span style={{...chipS(G6),fontWeight:800}}>{pairSum(pair,players)}pts</span>}
+                <div style={{fontWeight:700,fontSize:13,color:pair.wo?"#ea580c":G7}}>Pareja {pair.pairNum}</div>
+                {d&&r&&!pair.wo&&<span style={{...chipS(G6),fontWeight:800}}>{pairSum(pair,players)}pts</span>}
+                {pair.wo&&<span style={{...chipS("#ea580c","#fff7ed"),fontWeight:800}}>⚡ W.O. · 6/0 6/0</span>}
               </Row>
-              <div style={{display:"flex",gap:14,marginBottom:9,flexWrap:"wrap"}}>
-                {d&&<span style={{fontSize:13}}><span style={{color:G5,fontWeight:700}}>🟢 </span>{d.nick||shortName(d.name)}</span>}
-                {r&&<span style={{fontSize:13}}><span style={{color:BLUE,fontWeight:700}}>🔵 </span>{r.nick||shortName(r.name)}</span>}
-              </div>
+              {pair.wo?(
+                <div style={{marginBottom:9}}>
+                  {(pair.derechaId||pair.revesId)?(
+                    <div style={{display:"flex",gap:14,flexWrap:"wrap",opacity:.55,marginBottom:4}}>
+                      {d&&<span style={{fontSize:12,textDecoration:"line-through"}}>🟢 {d.nick||shortName(d.name)}</span>}
+                      {r&&<span style={{fontSize:12,textDecoration:"line-through"}}>🔵 {r.nick||shortName(r.name)}</span>}
+                    </div>
+                  ):(
+                    <div style={{fontSize:12,color:"#9a3412",marginBottom:3}}>Sin jugadoras — pareja vacía</div>
+                  )}
+                  <div style={{fontSize:11,color:"#9a3412"}}>El punto va al rival · FMP registra 6/0 6/0</div>
+                </div>
+              ):(
+                <div style={{display:"flex",gap:14,marginBottom:9,flexWrap:"wrap"}}>
+                  {d&&<span style={{fontSize:13}}><span style={{color:G5,fontWeight:700}}>🟢 </span>{d.nick||shortName(d.name)}</span>}
+                  {r&&<span style={{fontSize:13}}><span style={{color:BLUE,fontWeight:700}}>🔵 </span>{r.nick||shortName(r.name)}</span>}
+                </div>
+              )}
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>setPairRes(pair._i,"win")}  style={{...btnS(pair.pairResult==="win"?G5:"#f5f0ff",pair.pairResult==="win"?"#fff":G6,13),flex:1}}>✅ Gana</button>
-                <button onClick={()=>setPairRes(pair._i,"loss")} style={{...btnS(pair.pairResult==="loss"?RED:REDL,pair.pairResult==="loss"?"#fff":RED,13),flex:1}}>❌ Pierde</button>
+                {!pair.wo&&<button onClick={()=>setPairRes(pair._i,"win")}  style={{...btnS(pair.pairResult==="win"?G5:"#f5f0ff",pair.pairResult==="win"?"#fff":G6,13),flex:1}}>✅ Gana</button>}
+                {!pair.wo&&<button onClick={()=>setPairRes(pair._i,"loss")} style={{...btnS(pair.pairResult==="loss"?RED:REDL,pair.pairResult==="loss"?"#fff":RED,13),flex:1}}>❌ Pierde</button>}
+                <button onClick={()=>setPairRes(pair._i,"wo")} style={{...btnS(pair.wo?"#ea580c":"#f3f4f6",pair.wo?"#fff":"#374151",12),flex:pair.wo?2:1,boxShadow:"none"}}>⚡ {pair.wo?"Deshacer W.O.":"W.O."}</button>
               </div>
             </div>
           );
